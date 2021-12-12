@@ -1,4 +1,4 @@
-name: Test-Publish
+name: Test & Publish
 
 on:
   push:
@@ -47,9 +47,49 @@ jobs:
       - name: Run Pester
         shell: pwsh
         run: Invoke-Pester ./tests/Start-Kurukuru.Tests.ps1
+
   new-version-only:
     runs-on: ubuntu-latest
     needs: [get-version, test]
     if: ${{ needs.get-version.outputs.is-new == 'true' }}
     steps:
       - run: echo "new-version"
+
+  publish:
+    runs-on: windows-latest
+    environment:
+      name: actions
+      url: https://github.com
+    needs: [get-version, new-version-only]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Push tag
+        id: tag-version
+        uses: mathieudutour/github-tag-action@v5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ needs.get-version.outputs.version }}
+          tag_prefix: "v"
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        id: create-release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.tag-version.outputs.new_tag }}
+          name: Version ${{ needs.get-version.outputs.version }}
+          body: https://github.com/${{ github.repository }}/blob/${{ steps.tag-version.outputs.new_tag }}/CHANGELOG.md
+
+      - name: Install-Module PowerShellGet
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PowerShellGet -MinimumVersion "3.0.12-beta" -AllowPrerelease -Repository PSGallery -AllowClobber -Force
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          $NUGET_KEY = "${{ secrets.PWSH_NUGET_KEY  }}"
+          tools/dist.ps1 -TagName "v${{ needs.get-version.outputs.version }}"
+          Import-Module PowerShellGet
+          Publish-PSResource -Path ./kurukuru-pwsh -APIKey "$NUGET_KEY" -Repository PSGallery
