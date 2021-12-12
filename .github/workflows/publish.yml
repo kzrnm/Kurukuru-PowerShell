@@ -56,7 +56,7 @@ jobs:
       - run: echo "new-version"
 
   publish:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     environment:
       name: actions
       url: https://github.com
