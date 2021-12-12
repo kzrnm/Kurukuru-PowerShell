@@ -1,0 +1,55 @@
+name: Test-Publish
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      is-new: ${{ steps.is-new-version.outputs.is-new }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Module Version
+        id: get-version
+        shell: pwsh
+        run: |
+          Import-Module ./kurukuru-pwsh.psd1
+          $version = (Get-Module kurukuru-pwsh).Version.ToString()
+          Write-Output $version
+          Write-Output "::set-output name=version::$version"
+
+      - name: Check tag
+        uses: mukunku/tag-exists-action@v1.0.0
+        id: check-tag
+        with:
+          tag: v${{ steps.get-version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: is new version?
+        id: is-new-version
+        run: |
+          IS_NEW=false
+          if [ "${{ steps.check-tag.outputs.exists }}" = "false" ]; then
+            echo "new version tag project: ${{ steps.get-version.outputs.version }}"
+            IS_NEW=true
+          fi
+          echo "::set-output name=is-new::$IS_NEW"
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run Pester
+        shell: pwsh
+        run: Invoke-Pester ./tests/Start-Kurukuru.Tests.ps1
+  new-version-only:
+    runs-on: ubuntu-latest
+    needs: [get-version, test]
+    if: ${{ needs.get-version.outputs.is-new == 'true' }}
+    steps:
+      - run: echo "new-version"
