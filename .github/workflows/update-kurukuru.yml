@@ -1,0 +1,38 @@
+name: Update Kurukuru
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download Kurukuru
+        shell: pwsh
+        id: download-kurukuru
+        run: ./tools/download_kurukuru.ps1
+      - name: Is New Kurukuru
+        id: new-kurukuru
+        run: |
+          if [ -e file ]; then
+            echo "::set-output name=is-new::true"
+          else
+            echo "::set-output name=is-new::false"
+          fi
+
+      - name: Copy DLL
+        if: ${{ steps.new-kurukuru.outputs.is-new == 'true' }}
+        run: cp tmp/New-Kurukuru.dll lib/Kurukuru.dll
+
+      - name: Create Pull Request
+        if: ${{ steps.new-kurukuru.outputs.is-new == 'true' }}
+        uses: peter-evans/create-pull-request@v3
+        with:
+          commit-message: Update Kurukuru.dll
+          delete-branch: true
+          branch: auto/update-kurukuru
+          branch-suffix: -${{ steps.download-kurukuru.outputs.kurukuru-version }}
+          title: Update Kurukuru.dll ${{ steps.download-kurukuru.outputs.kurukuru-version }}
