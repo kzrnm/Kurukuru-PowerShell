@@ -1,4 +1,3 @@
-try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch [System.IO.IOException] {}
 [System.Reflection.Assembly]::LoadFile("$PSScriptRoot/lib/Kurukuru.dll")
 
 $publicStaticBindingFlags = [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Public
