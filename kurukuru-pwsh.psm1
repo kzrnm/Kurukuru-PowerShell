@@ -2,6 +2,7 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch [System.IO.IOExc
 [System.Reflection.Assembly]::LoadFile("$PSScriptRoot/lib/Kurukuru.dll")
 
 $publicStaticBindingFlags = [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Public
+$PatternsFields = [System.Reflection.FieldInfo[]]([Kurukuru.Patterns].GetFields($publicStaticBindingFlags) | Where-Object { $_.FieldType -EQ [Kurukuru.Pattern] })
 $InvalidPatternName = "Invalid Pattern Name"
 function Add-PatternName {
     param (
@@ -42,9 +43,7 @@ function Get-KurukuruPattern {
         }
         return (Add-PatternName $PatternValue $Pattern)
     }
-    return [Kurukuru.Patterns].GetFields($publicStaticBindingFlags) |
-    Where-Object { $_.FieldType -EQ [Kurukuru.Pattern] } |
-    ForEach-Object { Add-PatternName $_.GetValue($null) $_.Name }
+    return $PatternsFields | ForEach-Object { Add-PatternName $_.GetValue($null) $_.Name }
 }
 
 function Start-Kurukuru {
@@ -101,5 +100,26 @@ function Start-Kurukuru {
     }
     finally {
         $spinner.Dispose()
+    }
+}
+
+Register-ArgumentCompleter -CommandName Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock {
+    param(
+        $commandName,
+        $parameterName,
+        $wordToComplete,
+        $commandAst,
+        $fakeBoundParameter
+    )
+    
+    if ($wordToComplete.Length -eq 0) { return $PatternsFields.Name }
+    foreach ($item in $PatternsFields.Name) {
+        if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
+            [System.Management.Automation.CompletionResult]::new(
+                $item,
+                $item,
+                [System.Management.Automation.CompletionResultType]::ParameterValue, 
+                $item) 
+        }
     }
 }
