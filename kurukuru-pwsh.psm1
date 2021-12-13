@@ -4,7 +4,7 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch [System.IO.IOExc
 $publicStaticBindingFlags = [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Public
 $PatternsFields = [System.Reflection.FieldInfo[]]([Kurukuru.Patterns].GetFields($publicStaticBindingFlags) | Where-Object { $_.FieldType -EQ [Kurukuru.Pattern] })
 $InvalidPatternName = "Invalid Pattern Name"
-function Add-PatternName {
+function AddPatternName {
     param (
         [Parameter(Mandatory = $true, Position = 0)][Kurukuru.Pattern]$Pattern,
         [Parameter(Mandatory = $true, Position = 1)][string]$Name
@@ -14,8 +14,21 @@ function Add-PatternName {
     $result
 }
 
+function ConvertToSymbolDefinition {
+    [OutputType([Kurukuru.SymbolDefinition])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        $StringOrSymbol
+    )
+    if ($StringOrSymbol -is [Kurukuru.SymbolDefinition]) {
+        return $StringOrSymbol
+    }
+    else {
+        return [Kurukuru.SymbolDefinition]::new($StringOrSymbol, $null)
+    }
+}
 
-function Get-KurukuruPatternValue {
+function GetKurukuruPatternValue {
     [OutputType([Kurukuru.Pattern[]])]
     param (
         [Parameter(Mandatory = $false, Position = 0)]
@@ -37,13 +50,13 @@ function Get-KurukuruPattern {
         $Pattern
     )
     if ($Pattern) {
-        $PatternValue = (Get-KurukuruPatternValue $Pattern)
+        $PatternValue = (GetKurukuruPatternValue $Pattern)
         if (-not $PatternValue) {
             throw "${InvalidPatternName}: $Pattern"
         }
-        return (Add-PatternName $PatternValue $Pattern)
+        return (AddPatternName $PatternValue $Pattern)
     }
-    return $PatternsFields | ForEach-Object { Add-PatternName $_.GetValue($null) $_.Name }
+    return $PatternsFields | ForEach-Object { AddPatternName $_.GetValue($null) $_.Name }
 }
 
 function Start-Kurukuru {
@@ -62,7 +75,21 @@ function Start-Kurukuru {
         [string]
         $SucceedText,
         [Parameter(Mandatory = $false)]
-        $Pattern
+        [string]
+        $FailedText,
+        [Parameter(Mandatory = $false)]
+        $Pattern,
+        [Parameter(Mandatory = $false)]
+        [Nullable[System.ConsoleColor]]
+        $Color,
+        [Parameter(Mandatory = $false)]
+        $SymbolSucceed,
+        [Parameter(Mandatory = $false)]
+        $SymbolFailed,
+        [Parameter(Mandatory = $false)]
+        $SymbolWarn,
+        [Parameter(Mandatory = $false)]
+        $SymbolInfo
     )
 
     if ($ScriptBlock.Equals($InitializationScript)) {
@@ -76,13 +103,52 @@ function Start-Kurukuru {
         $Pattern = [Kurukuru.Pattern]$Pattern
     }
     else {
-        $Pattern = [Kurukuru.Pattern](Get-KurukuruPatternValue $Pattern)
+        $Pattern = [Kurukuru.Pattern](GetKurukuruPatternValue $Pattern)
         if (-not $Pattern) {
             Write-Warning "${InvalidPatternName}: $Pattern"
         }
     }
 
     $spinner = [Kurukuru.Spinner]::new($Text, $Pattern)
+    $spinner.Color = $Color
+    
+    if ($SymbolSucceed) {
+        $symbol = (ConvertToSymbolDefinition $SymbolSucceed)
+        if ($symbol.Fallback) {
+            $spinner.SymbolSucceed = $symbol
+        }
+        else {
+            $spinner.SymbolSucceed = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolSucceed.Fallback)
+        }
+    }
+    if ($SymbolFailed) {
+        $symbol = (ConvertToSymbolDefinition $SymbolFailed)
+        if ($symbol.Fallback) {
+            $spinner.SymbolFailed = $symbol
+        }
+        else {
+            $spinner.SymbolFailed = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolFailed.Fallback)
+        }
+    }
+    if ($SymbolWarn) {
+        $symbol = (ConvertToSymbolDefinition $SymbolWarn)
+        if ($symbol.Fallback) {
+            $spinner.SymbolWarn = $symbol
+        }
+        else {
+            $spinner.SymbolWarn = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolWarn.Fallback)
+        }
+    }
+    if ($SymbolInfo) {
+        $symbol = (ConvertToSymbolDefinition $SymbolInfo)
+        if ($symbol.Fallback) {
+            $spinner.SymbolInfo = $symbol
+        }
+        else {
+            $spinner.SymbolInfo = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolInfo.Fallback)
+        }
+    }
+
     if ($InitializationScript) {
         $InitializationScript.Invoke($spinner)
     }
@@ -95,7 +161,10 @@ function Start-Kurukuru {
         $spinner.Succeed($SucceedText)
     }
     catch {
-        $spinner.Fail($spinner.Text)
+        if (-not $FailedText) {
+            $FailedText = $spinner.Text
+        }
+        $spinner.Fail($FailedText)
         throw
     }
     finally {
@@ -103,23 +172,36 @@ function Start-Kurukuru {
     }
 }
 
-Register-ArgumentCompleter -CommandName Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock {
-    param(
-        $commandName,
-        $parameterName,
-        $wordToComplete,
-        $commandAst,
-        $fakeBoundParameter
+function CreateArgumentCompleter {
+    param (
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string[]]$Names
     )
-    
-    if ($wordToComplete.Length -eq 0) { return $PatternsFields.Name }
-    foreach ($item in $PatternsFields.Name) {
-        if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
-            [System.Management.Automation.CompletionResult]::new(
-                $item,
-                $item,
-                [System.Management.Automation.CompletionResultType]::ParameterValue, 
-                $item) 
+    {
+        param(
+            $commandName,
+            $parameterName,
+            $wordToComplete,
+            $commandAst,
+            $fakeBoundParameter
+        )
+        
+        if ($wordToComplete.Length -eq 0) { return $Names }
+        foreach ($item in $Names) {
+            if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
+                [System.Management.Automation.CompletionResult]::new(
+                    $item,
+                    $item,
+                    [System.Management.Automation.CompletionResultType]::ParameterValue, 
+                    $item) 
+            }
         }
-    }
+    }.GetNewClosure()
 }
+
+Register-ArgumentCompleter -CommandName Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock (
+    CreateArgumentCompleter -Names ($PatternsFields.Name)
+)
+Register-ArgumentCompleter -CommandName Start-Kurukuru -ParameterName Color -ScriptBlock (
+    CreateArgumentCompleter -Names ([System.Enum]::GetNames([System.ConsoleColor]))
+)

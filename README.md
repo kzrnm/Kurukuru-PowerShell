@@ -33,10 +33,10 @@ Start-Kurukuru {
 
 ```powershell
 Start-Kurukuru -Text "Initialize" -SucceedText "Success" -Pattern Moon {
-  param($spinner)
+  param([Kurukuru.Spinner]$spinner)
     $spinner.SymbolSucceed = [Kurukuru.SymbolDefinition]::new("🌅", "O")
 } {
-  param($spinner)
+  param([Kurukuru.Spinner]$spinner)
   Start-Sleep -Seconds 1.5
   $spinner.Text = "Foo"
   Start-Sleep -Seconds 1.5
