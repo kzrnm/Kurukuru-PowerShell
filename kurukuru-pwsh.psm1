@@ -55,7 +55,20 @@ function Get-KurukuruPattern {
     }
     return $PatternsFields | ForEach-Object { AddPatternName $_.GetValue($null) $_.Name }
 }
-
+function Show-KurukuruSample {
+    param (
+        [Parameter(Mandatory = $false)]
+        [int]
+        $ParallelLimit = 10,
+        [Parameter(Mandatory = $false)]
+        [int]
+        $Seconds = 2
+    )
+    
+    Get-KurukuruPattern | ForEach-Object -ThrottleLimit $ParallelLimit -Parallel {
+        Start-Kurukuru -Text $_.Name -Pattern $_ { Start-Sleep -Seconds $using:Seconds }
+    }
+}
 function Start-Kurukuru {
     param (
         [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'WithInitialization')]

@@ -24,6 +24,7 @@
     # Functions to export from this module
     FunctionsToExport  = @(
         'Start-Kurukuru',
+        'Show-KurukuruSample',
         'Get-KurukuruPattern'
     )
 
