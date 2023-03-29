@@ -14,6 +14,16 @@ https://user-images.githubusercontent.com/32071278/145768756-23f1ab90-5e54-45cc-
 Install-Module kurukuru-pwsh
 ```
 
+### Enable unicode
+
+If you want to use emoji patterns in Windows, set OutputEncoding to UTF8. I recommend adding it to your `$profile`.
+
+```powershell
+[System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+```
+
+For details to Kurukuru documentation. https://github.com/mayuki/Kurukuru#aware-non-unicode-codepage-on-windows-environment
+
 ## Usage
 
 ### Simple
