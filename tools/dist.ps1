@@ -6,10 +6,10 @@ param (
 )
 
 #Install-Module PowerShellGet -Scope CurrentUser -Force -AllowClobber
-$dist = "kurukuru-pwsh"
+$module = "kurukuru-pwsh"
 
-mkdir $dist
+mkdir $module
 
-Copy-Item * -Recurse -Destination $dist -Exclude $dist, tools, .github, .gitignore
+Copy-Item * -Recurse -Destination $module -Exclude $module, tools, .github, .gitignore
 
-(Get-Content ./kurukuru-pwsh.psd1 -Raw).Replace('Kurukuru-PowerShell/blob/master', "Kurukuru-PowerShell/blob/$TagName") | Out-File -Encoding utf8NoBOM -FilePath ./$dist/kurukuru-pwsh.psd1
+(Get-Content "./$module.psd1" -Raw).Replace('blob/master', "blob/$TagName") | Out-File -Encoding utf8NoBOM -FilePath "./$module/$module.psd1"
