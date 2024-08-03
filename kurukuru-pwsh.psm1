@@ -1,5 +1,3 @@
-[System.Reflection.Assembly]::LoadFile("$PSScriptRoot/lib/Kurukuru.dll")
-
 $publicStaticBindingFlags = [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Public
 $PatternsFields = [System.Reflection.FieldInfo[]]([Kurukuru.Patterns].GetFields($publicStaticBindingFlags) | Where-Object { $_.FieldType -EQ [Kurukuru.Pattern] })
 $InvalidPatternName = "Invalid Pattern Name"
