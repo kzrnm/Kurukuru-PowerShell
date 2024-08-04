@@ -6,8 +6,11 @@ param (
 $nupkgPath = "$PSScriptRoot/../tmp/kurukuru.nupkg"
 
 if (-not $NoDownload) {
-    mkdir tmp
+    mkdir tmp -Force
     Invoke-WebRequest "https://www.nuget.org/api/v2/package/Kurukuru/" -OutFile $nupkgPath
+    if (Test-Path ./tmp/kurukuru) {
+        Remove-Item -Recurse ./tmp/kurukuru -Force
+    }
     Expand-Archive -Path $nupkgPath ./tmp/kurukuru
 }
 
@@ -16,7 +19,8 @@ $currentDllPath = (Resolve-Path "$PSScriptRoot/../lib/Kurukuru.dll")
 
 $assemblyVersionScriptBlock = {
     param($dllPath)
-    Write-Output ([System.Reflection.Assembly]::LoadFile($dllPath).GetName().Version)
+    $assembly = [System.Reflection.Assembly]::Load([System.IO.File]::ReadAllBytes($dllPath))
+    Write-Output ($assembly.GetName().Version)
 }
 
 $downloadedAsmJob = Start-Job -ScriptBlock $assemblyVersionScriptBlock -ArgumentList $dllPath

@@ -86,3 +86,71 @@ Start-Kurukuru -Pattern ([Kurukuru.Pattern]::new(@("＿", "￣"), 150)) {
         }).GetNewClosure()
 } | Start-Kurukuru
 ```
+
+### Start-Sleep
+
+```powershell
+function Start-KurukuruSleep {
+    [CmdletBinding(DefaultParameterSetName = 'Seconds')]
+    param (
+        [Parameter(ParameterSetName = 'FromTimeSpan', Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('ts')]
+        [timespan]
+        $Duration,
+        [Parameter(ParameterSetName = 'Milliseconds', Mandatory, ValueFromPipelineByPropertyName)]
+        [Alias('ms')]
+        [int]
+        $Milliseconds,
+        [Parameter(ParameterSetName = 'Seconds', Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [double]
+        $Seconds,
+        $Pattern = $null
+    )
+    
+    switch ($PSCmdlet.ParameterSetName) {
+        'Milliseconds' { 
+            $Duration = [timespan]::FromMilliseconds($Milliseconds)
+        }
+        'Seconds' {
+            $Duration = [timespan]::FromSeconds($Seconds)
+        }
+    }
+    
+    $until = [datetime]::Now.Add($Duration)
+    $untilText = "Waiting until $($until.ToString())..."
+    Start-Kurukuru -Pattern $Pattern -Text $untilText -SucceedText 'Finish.' {
+        param($s)
+    
+        try {
+            do {
+                $remaining = $until - (Get-Date)
+                $s.Text = "$untilText Ramaining $remaining"
+                Start-Sleep -Milliseconds 300
+            }while ($remaining -gt 0) 
+        }
+        catch {
+        }
+    }
+}
+
+Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterName Color -ScriptBlock {
+    param(
+        $commandName,
+        $parameterName,
+        $wordToComplete,
+        $commandAst,
+        $fakeBoundParameter
+    )
+    $Names = $KurukuruPatterns.Name
+    if ($wordToComplete.Length -eq 0) { return $Names }
+    foreach ($item in $Names) {
+        if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
+            [System.Management.Automation.CompletionResult]::new(
+                $item,
+                $item,
+                [System.Management.Automation.CompletionResultType]::ParameterValue, 
+                $item) 
+        }
+    }
+}
+```

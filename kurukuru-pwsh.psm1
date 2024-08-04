@@ -1,17 +1,17 @@
-$publicStaticBindingFlags = [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Public
-$DefinedPatterns = [Kurukuru.Patterns].GetFields($publicStaticBindingFlags) | Where-Object {
-    $_.FieldType -EQ [Kurukuru.Pattern]
-} | ForEach-Object {
-    $ret = $_.GetValue($null)
-    $ret | Add-Member 'Name' $_.Name
-    return $ret
-}
-$DefinedPatternsTable = @{}
-foreach ($p in $DefinedPatterns) {
-    $DefinedPatternsTable[$p.Name] = $p
+$KurukuruPatterns = [array]::AsReadOnly(([Kurukuru.Patterns].GetFields("Public, Static") | Where-Object {
+            $_.FieldType -EQ [Kurukuru.Pattern]
+        } | ForEach-Object {
+            $ret = $_.GetValue($null)
+            $ret | Add-Member 'Name' $_.Name
+            return $ret
+        }
+    ))
+$script:KurukuruPatternsTable = @{}
+foreach ($p in $KurukuruPatterns) {
+    $KurukuruPatternsTable[$p.Name] = $p
 }
 
-$InvalidPatternName = "Invalid Pattern Name"
+$script:EnabledThreadJob = (Get-Command Start-ThreadJob)
 
 function ConvertToSymbolDefinition {
     [OutputType([Kurukuru.SymbolDefinition])]
@@ -30,29 +30,101 @@ function ConvertToSymbolDefinition {
 function Get-KurukuruPattern {
     [OutputType([Kurukuru.Pattern[]])]
     param (
-        [Parameter(Mandatory = $false, Position = 0)]
-        [string]
+        [Parameter(Mandatory = $false, Position = 0, ValueFromRemainingArguments)]
         $Pattern
     )
     if ($Pattern) {
-        return $DefinedPatternsTable[$Pattern]
+        $Pattern | ForEach-Object {
+            if ($_ -is [Kurukuru.Pattern]) {
+                $_
+            }
+            else {
+                $KurukuruPatternsTable[$_]
+            }
+        }
     }
-    return $DefinedPatterns
+    else {
+        $KurukuruPatterns
+    }
 }
-function Show-KurukuruSample {
-    param (
-        [Parameter(Mandatory = $false)]
-        [int]
-        $ParallelLimit = 10,
-        [Parameter(Mandatory = $false)]
-        [int]
-        $Seconds = 2
+
+function Stop-Spiner {
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        $Spinners
     )
-    
-    Get-KurukuruPattern | ForEach-Object -ThrottleLimit $ParallelLimit -Parallel {
-        Start-Kurukuru -Text $_.Name -Pattern $_ { Start-Sleep -Seconds $using:Seconds }
+
+    if ($EnabledThreadJob) {
+        $Spinners | ForEach-Object {
+            Start-ThreadJob -ArgumentList @($_) -ScriptBlock { param($s) $s.Info() }
+        } | Receive-Job -Wait -AutoRemoveJob
+    }
+    else {
+        $Spinners | ForEach-Object { $_.Info() }
     }
 }
+
+function Show-KurukuruSample {
+    param(
+        [Parameter(ValueFromRemainingArguments)]
+        [array]
+        $Pattern
+    )
+    $Patterns = (Get-KurukuruPattern $Pattern)
+    if (-not $Patterns) {
+        return
+    }
+
+    $Spinners = [System.Collections.Generic.LinkedList[Kurukuru.Spinner]]::new()
+    try {
+        foreach ($p in $Patterns) {
+            $height = [math]::Max($Host.UI.RawUI.BufferSize.Height - 2, 1)
+            $over = $Spinners.Count - $height
+            if ($over -ge 0) {
+                [Console]::Write("Press key. Enter: next line, n: next page, q: Quit")
+                :read while ($true) {
+                    $key = [Console]::ReadKey($true)
+                    switch ($key.Key) {
+                    ([ConsoleKey]::Q) {
+                            return
+                        }
+                    ([ConsoleKey]::Enter) {
+                            break read
+                        }
+                    ([ConsoleKey]::N) {
+                            $over = $Spinners.Count
+                            break read
+                        }
+                    }
+                }
+        
+                $overSpinners = [System.Collections.ArrayList]::new()
+                for ($i = 0; $i -lt $over; $i++) {
+                    $overSpinners.Add($Spinners.First.Value)
+                    $Spinners.RemoveFirst()
+                }
+
+                Stop-Spiner $overSpinners
+            }
+
+            if ($p.Frames -and $p.Frames[0]) {
+                $sp = (New-Spinner -Text $p.Name -Pattern $p -SymbolInfo $p.Frames[0])
+            }
+            else {
+                $sp = (New-Spinner -Text $p.Name -Pattern $p -SymbolInfo "")
+            }
+            $sp.Start()
+            $Spinners.Add($sp)
+        }
+    
+        [Console]::Write("Press any key to exit.")
+        [Console]::ReadKey($true) | Out-Null
+    }
+    finally {
+        Stop-Spiner $Spinners
+    }
+}
+
 function Start-Kurukuru {
     [CmdletBinding()]
     [OutputType([Kurukuru.Spinner[]])]
@@ -60,6 +132,10 @@ function Start-Kurukuru {
         [Parameter(Mandatory, Position = 0, ParameterSetName = 'Spinner', ValueFromPipeline)]
         [Kurukuru.Spinner[]]
         $Spinner,
+        [Parameter(ParameterSetName = 'Spinner')]
+        [switch] $PassThru,
+        [Parameter(ParameterSetName = 'Spinner')]
+        [switch] $NoDispose,
         [Parameter(Mandatory, Position = 0, ParameterSetName = 'WithInitialization')]
         [scriptblock]
         $InitializationScript,
@@ -97,9 +173,7 @@ function Start-Kurukuru {
         $SymbolWarn = $null,
         [Parameter(ParameterSetName = 'WithoutInitialization')]
         [Parameter(ParameterSetName = 'WithInitialization')]
-        $SymbolInfo = $null,
-        [Parameter(ParameterSetName = 'Spinner')]
-        [switch] $PassThru
+        $SymbolInfo = $null
     )
     begin {
         $Spinners = [System.Collections.ArrayList]::new()
@@ -115,9 +189,9 @@ function Start-Kurukuru {
                 $Pattern = [Kurukuru.Pattern]$Pattern
             }
             else {
-                $Pattern = [Kurukuru.Pattern]$DefinedPatternsTable[$Pattern]
+                $Pattern = [Kurukuru.Pattern]$KurukuruPatternsTable[$Pattern]
                 if (-not $Pattern) {
-                    Write-Warning "${InvalidPatternName}: $Pattern"
+                    Write-Warning "Invalid Pattern Name: $Pattern"
                 }
             }
 
@@ -134,7 +208,7 @@ function Start-Kurukuru {
                 -ScriptBlock $ScriptBlock
 
             if ($InitializationScript) {
-                $InitializationScript.InvokeWithContext($null, ([psvariable]::new('_', $s)), @($s))
+                & $InitializationScript $s
             }
             $Spinners.Add($s) | Out-Null
         }
@@ -156,6 +230,7 @@ function Start-Kurukuru {
                     if ($s.ScriptBlock) {
                         & $s.ScriptBlock $s
                     }
+                    if ($s.Stopped) { return }
                     $text = $s.SucceedText
                     if (-not $text) {
                         $text = $s.Text
@@ -163,6 +238,7 @@ function Start-Kurukuru {
                     $s.Succeed($text)
                 }
                 catch {
+                    if ($s.Stopped) { return }
                     $text = $s.FailedText
                     if (-not $text) {
                         $text = $s.Text
@@ -171,10 +247,16 @@ function Start-Kurukuru {
                 }
             }
 
-            if (Get-Command Start-ThreadJob) {
+            if ($Spinners.Count -eq 1) {
+                $jobScript.Invoke($Spinners[0])
+            }
+            elseif ($EnabledThreadJob) {
                 $Spinners | ForEach-Object {
                     Start-ThreadJob -ThrottleLimit 1000000 -ScriptBlock $jobScript -ArgumentList @($_)
                 } | Receive-Job -Wait -AutoRemoveJob | Out-Null
+            }
+            else {
+                $Spinners | ForEach-Object { & $jobScript $_ } | Out-Null
             }
             if ($PassThru) {
                 return $Spinners
@@ -182,36 +264,11 @@ function Start-Kurukuru {
             return
         }
         finally {
-            $Spinners.Dispose()
-        }
-    }
-}
-
-function CreateArgumentCompleter {
-    param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string[]]$Names
-    )
-    {
-        param(
-            $commandName,
-            $parameterName,
-            $wordToComplete,
-            $commandAst,
-            $fakeBoundParameter
-        )
-        
-        if ($wordToComplete.Length -eq 0) { return $Names }
-        foreach ($item in $Names) {
-            if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
-                [System.Management.Automation.CompletionResult]::new(
-                    $item,
-                    $item,
-                    [System.Management.Automation.CompletionResultType]::ParameterValue, 
-                    $item) 
+            if (-not $NoDispose) {
+                $Spinners.Dispose()
             }
         }
-    }.GetNewClosure()
+    }
 }
 
 function New-Spinner {
@@ -276,11 +333,62 @@ function New-Spinner {
     return $spinner
 }
 
-$patternCompleter = CreateArgumentCompleter -Names ($DefinedPatternsTable.Keys)
+function New-KurukuruPattern {
+    [CmdletBinding(PositionalBinding = $false)]
+    [OutputType([Kurukuru.Pattern])]
+    param(
+        [Parameter(Mandatory, ValueFromRemainingArguments)]
+        [string[]]
+        $Frames,
+        [Parameter()]
+        [int]
+        $Interval = 100
+    )
+    [Kurukuru.Pattern]::new($Frames, $Interval)
+}
 
-Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock $patternCompleter
+$patternCompleter = {
+    param(
+        $commandName,
+        $parameterName,
+        $wordToComplete,
+        $commandAst,
+        $fakeBoundParameter
+    )
+
+    foreach ($p in ($KurukuruPatterns)) {
+        if ($p.Name.ToLower().StartsWith($wordToComplete.ToLower())) {
+            [System.Management.Automation.CompletionResult]::new(
+                $p.Name,
+                $p.Name,
+                [System.Management.Automation.CompletionResultType]::ParameterValue, 
+                "$($p.Frames) Interval=$($p.Interval)"
+            )
+        }
+    }
+}
+
+Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru, Start-KurukuruSleep, Get-KurukuruPattern, Show-KurukuruSample -ParameterName Pattern -ScriptBlock $patternCompleter
 Register-ArgumentCompleter -CommandName New-Spinner -ParameterName FallbackPattern -ScriptBlock $patternCompleter
 
-Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterName Color -ScriptBlock (
-    CreateArgumentCompleter -Names ([System.Enum]::GetNames([System.ConsoleColor]))
-)
+Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterName Color -ScriptBlock {
+    param(
+        $commandName,
+        $parameterName,
+        $wordToComplete,
+        $commandAst,
+        $fakeBoundParameter
+    )
+
+    foreach ($item in ([System.Enum]::GetNames([System.ConsoleColor]))) {
+        if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
+            [System.Management.Automation.CompletionResult]::new(
+                $item,
+                $item,
+                [System.Management.Automation.CompletionResultType]::ParameterValue, 
+                $item
+            )
+        }
+    }
+}
+Export-ModuleMember -Variable KurukuruPatterns
