@@ -1,15 +1,17 @@
 $publicStaticBindingFlags = [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Public
-$PatternsFields = [System.Reflection.FieldInfo[]]([Kurukuru.Patterns].GetFields($publicStaticBindingFlags) | Where-Object { $_.FieldType -EQ [Kurukuru.Pattern] })
-$InvalidPatternName = "Invalid Pattern Name"
-function AddPatternName {
-    param (
-        [Parameter(Mandatory = $true, Position = 0)][Kurukuru.Pattern]$Pattern,
-        [Parameter(Mandatory = $true, Position = 1)][string]$Name
-    )
-    $result = [Kurukuru.Pattern]::new($Pattern.Frames, $Pattern.Interval)
-    $result | Add-Member "Name" $Name
-    $result
+$DefinedPatterns = [Kurukuru.Patterns].GetFields($publicStaticBindingFlags) | Where-Object {
+    $_.FieldType -EQ [Kurukuru.Pattern]
+} | ForEach-Object {
+    $ret = $_.GetValue($null)
+    $ret | Add-Member 'Name' $_.Name
+    return $ret
 }
+$DefinedPatternsTable = @{}
+foreach ($p in $DefinedPatterns) {
+    $DefinedPatternsTable[$p.Name] = $p
+}
+
+$InvalidPatternName = "Invalid Pattern Name"
 
 function ConvertToSymbolDefinition {
     [OutputType([Kurukuru.SymbolDefinition])]
@@ -25,20 +27,6 @@ function ConvertToSymbolDefinition {
     }
 }
 
-function GetKurukuruPatternValue {
-    [OutputType([Kurukuru.Pattern[]])]
-    param (
-        [Parameter(Mandatory = $false, Position = 0)]
-        [string]
-        $Pattern
-    )
-    $field = [Kurukuru.Patterns].GetField($Pattern, $publicStaticBindingFlags)
-    if (-not $field) {
-        return $null
-    }
-    return $field.GetValue($null)
-}
-
 function Get-KurukuruPattern {
     [OutputType([Kurukuru.Pattern[]])]
     param (
@@ -47,13 +35,9 @@ function Get-KurukuruPattern {
         $Pattern
     )
     if ($Pattern) {
-        $PatternValue = (GetKurukuruPatternValue $Pattern)
-        if (-not $PatternValue) {
-            throw "${InvalidPatternName}: $Pattern"
-        }
-        return (AddPatternName $PatternValue $Pattern)
+        return $DefinedPatternsTable[$Pattern]
     }
-    return $PatternsFields | ForEach-Object { AddPatternName $_.GetValue($null) $_.Name }
+    return $DefinedPatterns
 }
 function Show-KurukuruSample {
     param (
@@ -131,7 +115,7 @@ function Start-Kurukuru {
                 $Pattern = [Kurukuru.Pattern]$Pattern
             }
             else {
-                $Pattern = [Kurukuru.Pattern](GetKurukuruPatternValue $Pattern)
+                $Pattern = [Kurukuru.Pattern]$DefinedPatternsTable[$Pattern]
                 if (-not $Pattern) {
                     Write-Warning "${InvalidPatternName}: $Pattern"
                 }
@@ -292,7 +276,7 @@ function New-Spinner {
     return $spinner
 }
 
-$patternCompleter = CreateArgumentCompleter -Names ($PatternsFields.Name)
+$patternCompleter = CreateArgumentCompleter -Names ($DefinedPatternsTable.Keys)
 
 Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock $patternCompleter
 Register-ArgumentCompleter -CommandName New-Spinner -ParameterName FallbackPattern -ScriptBlock $patternCompleter
