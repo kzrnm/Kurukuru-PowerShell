@@ -1,0 +1,38 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell",
+            "color": "terminal.ansiRed",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "Import-Module ./kurukuru-pwsh.psd1"
+            ],
+            "overrideName": true
+        },
+        "WindowsPowerShell": {
+            "path": "${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "icon": "terminal-powershell",
+            "color": "terminal.ansiRed",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "Import-Module ./kurukuru-pwsh.psd1"
+            ],
+            "overrideName": true
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [],
+            "icon": "terminal-cmd"
+        },
+        "Git Bash": {
+            "source": "Git Bash"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

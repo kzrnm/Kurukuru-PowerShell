@@ -25,6 +25,7 @@
     FunctionsToExport  = @(
         'Start-Kurukuru',
         'Show-KurukuruSample',
+        'New-Spinner',
         'Get-KurukuruPattern'
     )
 
@@ -40,6 +41,10 @@
     # Assemblies that must be loaded prior to importing this module
     RequiredAssemblies = @(
         'lib/Kurukuru.dll'
+    )
+    
+    RequiredModules    = @(
+        'ThreadJob'
     )
 
     # Private data to pass to the module specified in RootModule/ModuleToProcess.

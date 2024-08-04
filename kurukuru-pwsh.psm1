@@ -21,7 +21,7 @@ function ConvertToSymbolDefinition {
         return $StringOrSymbol
     }
     else {
-        return [Kurukuru.SymbolDefinition]::new($StringOrSymbol, $null)
+        return [Kurukuru.SymbolDefinition]::new($StringOrSymbol, $StringOrSymbol)
     }
 }
 
@@ -70,115 +70,136 @@ function Show-KurukuruSample {
     }
 }
 function Start-Kurukuru {
+    [CmdletBinding()]
+    [OutputType([Kurukuru.Spinner[]])]
     param (
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'WithInitialization')]
+        [Parameter(Mandatory, Position = 0, ParameterSetName = 'Spinner', ValueFromPipeline)]
+        [Kurukuru.Spinner[]]
+        $Spinner,
+        [Parameter(Mandatory, Position = 0, ParameterSetName = 'WithInitialization')]
         [scriptblock]
         $InitializationScript,
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'WithoutInitialization')]
-        [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'WithInitialization')]
+        [Parameter(Mandatory, Position = 0, ParameterSetName = 'WithoutInitialization')]
+        [Parameter(Mandatory, Position = 1, ParameterSetName = 'WithInitialization')]
         [scriptblock]
         $ScriptBlock,
-        [Parameter(Mandatory = $false)]
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
         [string]
-        $Text,
-        [Parameter(Mandatory = $false)]
+        $Text = '',
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
         [string]
-        $SucceedText,
-        [Parameter(Mandatory = $false)]
+        $SucceedText = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
         [string]
-        $FailedText,
-        [Parameter(Mandatory = $false)]
-        $Pattern,
-        [Parameter(Mandatory = $false)]
+        $FailedText = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
+        $Pattern = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
         [Nullable[System.ConsoleColor]]
-        $Color,
-        [Parameter(Mandatory = $false)]
-        $SymbolSucceed,
-        [Parameter(Mandatory = $false)]
-        $SymbolFailed,
-        [Parameter(Mandatory = $false)]
-        $SymbolWarn,
-        [Parameter(Mandatory = $false)]
-        $SymbolInfo
+        $Color = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
+        $SymbolSucceed = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
+        $SymbolFailed = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
+        $SymbolWarn = $null,
+        [Parameter(ParameterSetName = 'WithoutInitialization')]
+        [Parameter(ParameterSetName = 'WithInitialization')]
+        $SymbolInfo = $null,
+        [Parameter(ParameterSetName = 'Spinner')]
+        [switch] $PassThru
     )
+    begin {
+        $Spinners = [System.Collections.ArrayList]::new()
+        if ($PSCmdlet.ParameterSetName -in @('WithoutInitialization', 'WithInitialization')) {
+            if ($ScriptBlock.Equals($InitializationScript)) {
+                $InitializationScript = $null
+            }
 
-    if ($ScriptBlock.Equals($InitializationScript)) {
-        $InitializationScript = $null
-    }
+            if (-not $Pattern) {
+                $Pattern = $null
+            }
+            elseif ($Pattern -is [Kurukuru.Pattern]) {
+                $Pattern = [Kurukuru.Pattern]$Pattern
+            }
+            else {
+                $Pattern = [Kurukuru.Pattern](GetKurukuruPatternValue $Pattern)
+                if (-not $Pattern) {
+                    Write-Warning "${InvalidPatternName}: $Pattern"
+                }
+            }
 
-    if (-not $Pattern) {
-        $Pattern = $null
-    }
-    elseif ($Pattern -is [Kurukuru.Pattern]) {
-        $Pattern = [Kurukuru.Pattern]$Pattern
-    }
-    else {
-        $Pattern = [Kurukuru.Pattern](GetKurukuruPatternValue $Pattern)
-        if (-not $Pattern) {
-            Write-Warning "${InvalidPatternName}: $Pattern"
+            $s = New-Spinner `
+                -Text $Text `
+                -Pattern $Pattern `
+                -Color $Color `
+                -SymbolSucceed $SymbolSucceed `
+                -SymbolFailed $SymbolFailed `
+                -SymbolWarn $SymbolWarn `
+                -SymbolINfo $SymbolINfo `
+                -SucceedText $SucceedText `
+                -FailedText $FailedText `
+                -ScriptBlock $ScriptBlock
+
+            if ($InitializationScript) {
+                $InitializationScript.InvokeWithContext($null, ([psvariable]::new('_', $s)), @($s))
+            }
+            $Spinners.Add($s) | Out-Null
         }
     }
-
-    $spinner = [Kurukuru.Spinner]::new($Text, $Pattern)
-    $spinner.Color = $Color
+    process {
+        if ($Spinner) {
+            $Spinners.AddRange($Spinner) | Out-Null
+        }
+    }
+    end {
+        try {
+            foreach ($s in $Spinners) {
+                $s.Start() | Out-Null
+            }
     
-    if ($SymbolSucceed) {
-        $symbol = (ConvertToSymbolDefinition $SymbolSucceed)
-        if ($symbol.Fallback) {
-            $spinner.SymbolSucceed = $symbol
-        }
-        else {
-            $spinner.SymbolSucceed = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolSucceed.Fallback)
-        }
-    }
-    if ($SymbolFailed) {
-        $symbol = (ConvertToSymbolDefinition $SymbolFailed)
-        if ($symbol.Fallback) {
-            $spinner.SymbolFailed = $symbol
-        }
-        else {
-            $spinner.SymbolFailed = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolFailed.Fallback)
-        }
-    }
-    if ($SymbolWarn) {
-        $symbol = (ConvertToSymbolDefinition $SymbolWarn)
-        if ($symbol.Fallback) {
-            $spinner.SymbolWarn = $symbol
-        }
-        else {
-            $spinner.SymbolWarn = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolWarn.Fallback)
-        }
-    }
-    if ($SymbolInfo) {
-        $symbol = (ConvertToSymbolDefinition $SymbolInfo)
-        if ($symbol.Fallback) {
-            $spinner.SymbolInfo = $symbol
-        }
-        else {
-            $spinner.SymbolInfo = [Kurukuru.SymbolDefinition]::new($symbol.Default, $spinner.SymbolInfo.Fallback)
-        }
-    }
+            $jobScript = {
+                param([Kurukuru.Spinner]$s)
+                try {
+                    if ($s.ScriptBlock) {
+                        & $s.ScriptBlock $s
+                    }
+                    $text = $s.SucceedText
+                    if (-not $text) {
+                        $text = $s.Text
+                    }
+                    $s.Succeed($text)
+                }
+                catch {
+                    $text = $s.FailedText
+                    if (-not $text) {
+                        $text = $s.Text
+                    }
+                    $s.Fail($text)
+                }
+            }
 
-    if ($InitializationScript) {
-        $InitializationScript.Invoke($spinner)
-    }
-    $spinner.Start()
-    try {
-        $ScriptBlock.Invoke($spinner)
-        if (-not $SucceedText) {
-            $SucceedText = $spinner.Text
+            if (Get-Command Start-ThreadJob) {
+                $Spinners | ForEach-Object {
+                    Start-ThreadJob -ThrottleLimit 1000000 -ScriptBlock $jobScript -ArgumentList @($_)
+                } | Receive-Job -Wait -AutoRemoveJob | Out-Null
+            }
+            if ($PassThru) {
+                return $Spinners
+            }
+            return
         }
-        $spinner.Succeed($SucceedText)
-    }
-    catch {
-        if (-not $FailedText) {
-            $FailedText = $spinner.Text
+        finally {
+            $Spinners.Dispose()
         }
-        $spinner.Fail($FailedText)
-        throw
-    }
-    finally {
-        $spinner.Dispose()
     }
 }
 
@@ -209,9 +230,73 @@ function CreateArgumentCompleter {
     }.GetNewClosure()
 }
 
-Register-ArgumentCompleter -CommandName Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock (
-    CreateArgumentCompleter -Names ($PatternsFields.Name)
-)
-Register-ArgumentCompleter -CommandName Start-Kurukuru -ParameterName Color -ScriptBlock (
+function New-Spinner {
+    [CmdletBinding()]
+    [OutputType([Kurukuru.Spinner])]
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [AllowEmptyString()]
+        [string]
+        $Text,
+        [Parameter(Position = 1)]
+        $Pattern,
+        [Nullable[System.ConsoleColor]]
+        $Color = $null,
+        $SymbolSucceed = $null,
+        $SymbolFailed = $null,
+        $SymbolWarn = $null,
+        $SymbolInfo = $null,
+        [string]
+        $SucceedText = $null,
+        [string]
+        $FailedText = $null,
+        $FallbackPattern = $null,
+        [scriptblock]
+        $ScriptBlock
+    )
+
+    if ($null -eq $Pattern) {}
+    elseif ($Pattern -isnot [Kurukuru.Pattern]) {
+        $Pattern = [Kurukuru.Patterns].GetField($Pattern).GetValue($null)
+    }
+
+    if ($null -eq $FallbackPattern) {}
+    elseif ($FallbackPattern -is [string]) {
+        $FallbackPattern = [Kurukuru.Patterns].GetField($FallbackPattern).GetValue($null)
+    }
+
+    $spinner = [Kurukuru.Spinner]::new($Text, $Pattern, $Color, $true, $FallbackPattern)
+
+    if ($SymbolSucceed) {
+        $spinner.SymbolSucceed = (ConvertToSymbolDefinition $SymbolSucceed)
+    }
+    if ($SymbolFailed) {
+        $spinner.SymbolFailed = (ConvertToSymbolDefinition $SymbolFailed)
+    }
+    if ($SymbolWarn) {
+        $spinner.SymbolWarn = (ConvertToSymbolDefinition $SymbolWarn)
+    }
+    if ($SymbolInfo) {
+        $spinner.SymbolInfo = (ConvertToSymbolDefinition $SymbolInfo)
+    }
+
+    if ($null -ne $SucceedText) {
+        Add-Member SucceedText $SucceedText -InputObject $spinner
+    }
+    if ($null -ne $FailedText) {
+        Add-Member FailedText $FailedText -InputObject $spinner
+    }
+    if ($ScriptBlock) {
+        Add-Member ScriptBlock $ScriptBlock -InputObject $spinner
+    }
+    return $spinner
+}
+
+$patternCompleter = CreateArgumentCompleter -Names ($PatternsFields.Name)
+
+Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru, Get-KurukuruPattern -ParameterName Pattern -ScriptBlock $patternCompleter
+Register-ArgumentCompleter -CommandName New-Spinner -ParameterName FallbackPattern -ScriptBlock $patternCompleter
+
+Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterName Color -ScriptBlock (
     CreateArgumentCompleter -Names ([System.Enum]::GetNames([System.ConsoleColor]))
 )

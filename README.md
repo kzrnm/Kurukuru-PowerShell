@@ -32,14 +32,19 @@ Start-Kurukuru {
 ### Many Params
 
 ```powershell
-Start-Kurukuru -Text "Initialize" -SucceedText "Success" -Pattern Moon {
-  param([Kurukuru.Spinner]$spinner)
-    $spinner.SymbolSucceed = [Kurukuru.SymbolDefinition]::new("🌅", "O")
+Start-Kurukuru -Text "Initialize" -SucceedText "Success" -Pattern Moon -SymbolFailed ([Kurukuru.SymbolDefinition]::new("🌑", "O")) {
+    param([Kurukuru.Spinner]$spinner)
+    if ((([datetime]::Now.Hour + 18) % 24) -gt 12) {
+        $spinner.SymbolSucceed = [Kurukuru.SymbolDefinition]::new("🌕️", "O")
+    }
+    else {
+        $spinner.SymbolSucceed = [Kurukuru.SymbolDefinition]::new("🌅", "O")
+    }
 } {
-  param([Kurukuru.Spinner]$spinner)
-  Start-Sleep -Seconds 1.5
-  $spinner.Text = "Foo"
-  Start-Sleep -Seconds 1.5
+    param([Kurukuru.Spinner]$spinner)
+    Start-Sleep -Seconds 1.5
+    $spinner.Text = "Foo"
+    Start-Sleep -Seconds 1.5
 }
 ```
 
@@ -56,19 +61,28 @@ Start-Kurukuru -Pattern ([Kurukuru.Pattern]::new(@("＿", "￣"), 150)) {
 }
 ```
 
-
 ### Parallel
 
 ```powershell
-0..20 | ForEach-Object -Parallel {
+1..20 | ForEach-Object { 
     $i = $_
-    $waitMills = (Get-Random -Minimum 400 -Maximum 1500)
-    Import-Module kurukuru-pwsh
-    Start-Kurukuru -Text "Start: $i Wait: 400 ms" -SucceedText "Finish:$i" {
-        param($spinner)
-        Start-Sleep -Milliseconds 400
-        $spinner.Text = "Running: $i Wait: $waitMills ms"
-        Start-Sleep -Milliseconds $waitMills
-    }
-}
+    New-Spinner -Text "Start: $i and Wait: 300 ms" -Pattern (Get-Random (Get-KurukuruPattern)) -SucceedText "Finish:$i" -FailedText "Failed:$i" -ScriptBlock ({
+            param([Kurukuru.Spinner]$s)
+            $s.Text = "Starting: $i"
+            if ($i % 2 -eq 0) {
+                $waitMills = 250 * $i 
+            }
+            else {
+                $waitMills = 500 + 100 * $i
+            }
+            Start-Sleep -Milliseconds 300
+            $s.Text = "Running: $i Wait: $waitMills ms"
+            Start-Sleep -Milliseconds $waitMills
+            if ($i -eq 2) {
+                throw "Error 2"
+            }
+
+            $s.Text = "Closing: $i"
+        }).GetNewClosure()
+} | Start-Kurukuru
 ```
