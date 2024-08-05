@@ -4,7 +4,7 @@
     RootModule         = 'kurukuru-pwsh.psm1'
 
     # Version number of this module.
-    ModuleVersion      = '2.0.0'
+    ModuleVersion      = '2.0.1'
 
     # ID used to uniquely identify this module
     GUID               = '3efd22ec-7409-4f93-9d2b-8b78416e63fe'
