@@ -15,7 +15,7 @@ if (-not $NoDownload) {
 }
 
 $dllPath = (Resolve-Path "$PSScriptRoot/../tmp/kurukuru/lib/netstandard2.0/Kurukuru.dll")
-$currentDllPath = (Resolve-Path "$PSScriptRoot/../lib/Kurukuru.dll")
+$currentDllPath = (Resolve-Path "$PSScriptRoot/../src/lib/Kurukuru.dll")
 
 $assemblyVersionScriptBlock = {
     param($dllPath)
@@ -36,5 +36,5 @@ if ($downloadedAsmVersion.CompareTo($currentAsmVersion) -gt 0) {
     Copy-Item $dllPath "$PSScriptRoot/../tmp/New-Kurukuru.dll"
 
     Write-Output "Download new Kurukuru.dll $(Resolve-Path "$PSScriptRoot/../tmp/New-Kurukuru.dll")"
-    Write-Output "::set-output name=kurukuru-version::$downloadedAsmVersion"
+    Write-Output "kurukuru-version=$downloadedAsmVersion" >> $env:GITHUB_OUTPUT
 }

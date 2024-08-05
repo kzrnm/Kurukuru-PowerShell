@@ -7,7 +7,7 @@
             "args": [
                 "-NoExit",
                 "-Command",
-                "Import-Module ./kurukuru-pwsh.psd1"
+                "Import-Module ./src/kurukuru-pwsh.psd1"
             ],
             "overrideName": true
         },
@@ -18,7 +18,7 @@
             "args": [
                 "-NoExit",
                 "-Command",
-                "Import-Module ./kurukuru-pwsh.psd1"
+                "Import-Module ./src/kurukuru-pwsh.psd1"
             ],
             "overrideName": true
         },

@@ -1,95 +1,128 @@
 name: Test & Publish
 
 on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
-
+  workflow_call: 
+    inputs:
+      module-name:
+        required: true
+        type: string
+        description: Module name
+      environment:
+        default: actions
+        type: string
+        description: Environment of action
+      required-module:
+        type: string
+        description: 'e.g. ThreadJob'
+    secrets:
+      GALLERY_TOKEN:
+        description: API Token of PowerShell Gallery
+env:
+  Module: ${{ inputs.module-name }}
 jobs:
   get-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get-version.outputs.version }}
-      is-new: ${{ steps.is-new-version.outputs.is-new }}
+      is-prerelease: ${{ steps.get-version.outputs.is-prerelease }}
+      new-tag: ${{ steps.is-new-version.outputs.new-tag }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Get Module Version
         id: get-version
         shell: pwsh
         run: |
-          Import-Module ./kurukuru-pwsh.psd1
-          $version = (Get-Module kurukuru-pwsh).Version.ToString()
-          Write-Output $version
-          Write-Output "::set-output name=version::$version"
+          Import-Module "./src/${env:Module}.psd1"
+          $m = (Get-Module $env:Module)
+          $version = $m.Version.ToString()
+          $prerelease = $m.PrivateData.PSData.Prerelease
+          if ($prerelease) {
+            Write-Output "is-prerelease=true" | Tee-Object "$env:GITHUB_OUTPUT" -Append
+            $prerelease = "-$prerelease"
+          } else {
+            Write-Output "is-prerelease=false" | Tee-Object "$env:GITHUB_OUTPUT" -Append
+          }
+          Write-Output "version=$version$prerelease" | Tee-Object "$env:GITHUB_OUTPUT" -Append
 
       - name: Check tag
-        uses: mukunku/tag-exists-action@v1.0.0
+        uses: mukunku/tag-exists-action@v1.6.0
         id: check-tag
         with:
           tag: v${{ steps.get-version.outputs.version }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: is new version?
         id: is-new-version
         run: |
-          IS_NEW=false
+          TAG=""
           if [ "${{ steps.check-tag.outputs.exists }}" = "false" ]; then
             echo "new version tag project: ${{ steps.get-version.outputs.version }}"
-            IS_NEW=true
+            TAG="v${{ steps.get-version.outputs.version }}"
           fi
-          echo "::set-output name=is-new::$IS_NEW"
+          echo "new-tag=$TAG" | tee -a "$GITHUB_OUTPUT"
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Run Pester
         shell: pwsh
-        run: Invoke-Pester ./tests/Start-Kurukuru.Tests.ps1
+        run: |
+          ${{ format(inputs.required-module && 'Install-Module {0} -Scope CurrentUser -Force', inputs.required-module) }}
+          Invoke-Pester -CI
+  test-windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Pester
+        shell: powershell
+        run: |
+          ${{ format(inputs.required-module && 'Install-Module {0} -Scope CurrentUser -Force', inputs.required-module) }}
+          Invoke-Pester -CI
 
   new-version-only:
     runs-on: ubuntu-latest
-    needs: [get-version, test]
-    if: ${{ needs.get-version.outputs.is-new == 'true' }}
+    needs: [get-version, test, test-windows-powershell]
+    if: ${{ needs.get-version.outputs.new-tag != '' }}
     steps:
       - run: echo "new-version"
 
   publish:
     runs-on: ubuntu-latest
     environment:
-      name: actions
-      url: https://github.com
+      name: ${{ inputs.environment }}
     needs: [get-version, new-version-only]
+    permissions: 
+      contents: write
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Push tag
         id: tag-version
-        uses: mathieudutour/github-tag-action@v5
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          custom_tag: ${{ needs.get-version.outputs.version }}
-          tag_prefix: "v"
+        run: |
+          tag="${{ needs.get-version.outputs.new-tag }}"
+          git tag "$tag"
+          git push origin "$tag"
 
       - name: Create release
         uses: ncipollo/release-action@v1
         id: create-release
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ steps.tag-version.outputs.new_tag }}
+          tag: ${{ needs.get-version.outputs.new-tag }}
           name: Version ${{ needs.get-version.outputs.version }}
-          body: https://github.com/${{ github.repository }}/blob/${{ steps.tag-version.outputs.new_tag }}/CHANGELOG.md
+          body: ${{ github.server_url }}/${{ github.repository }}/blob/${{ steps.tag-version.outputs.new_tag }}/CHANGELOG.md
+          prerelease: ${{ needs.get-version.outputs.is-prerelease }}
 
       - name: Install-Module PowerShellGet
         shell: pwsh
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module PowerShellGet -MinimumVersion "3.0.12-beta" -AllowPrerelease -Repository PSGallery -AllowClobber -Force
+          Install-Module PowerShellGet -MinimumVersion " 3.0.23-beta23" -AllowPrerelease -Repository PSGallery -AllowClobber -Force
 
       - name: Publish
         shell: pwsh
         run: |
-          $NUGET_KEY = "${{ secrets.PWSH_NUGET_KEY  }}"
+          $TOKEN = "${{ secrets.GALLERY_TOKEN }}"
           tools/dist.ps1 -TagName "v${{ needs.get-version.outputs.version }}"
           Import-Module PowerShellGet
-          Publish-PSResource -Path ./kurukuru-pwsh -APIKey "$NUGET_KEY" -Repository PSGallery
+          Publish-PSResource -Path "./$env:Module" -APIKey "$TOKEN" -Repository PSGallery

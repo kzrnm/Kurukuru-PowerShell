@@ -1,0 +1,15 @@
+name: Test & Publish
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+jobs:
+  publish:
+    uses: kzrnm/Kurukuru-PowerShell/.github/workflows/publish.yml@main
+    with:
+      module-name: kurukuru-pwsh
+      required-module: ThreadJob
+    secrets: inherit
+  

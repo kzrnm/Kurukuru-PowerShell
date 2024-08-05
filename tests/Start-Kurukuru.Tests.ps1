@@ -1,5 +1,5 @@
-BeforeAll {
-    Import-Module "$PSScriptRoot/../kurukuru-pwsh.psd1"
+﻿BeforeAll {
+    Import-Module "$PSScriptRoot/../src/kurukuru-pwsh.psd1"
     $Pattern = [Kurukuru.Pattern]::new(
         @(
             "0", "1", "2", "3", "4",
