@@ -133,7 +133,7 @@ function Start-KurukuruSleep {
     }
 }
 
-Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterName Color -ScriptBlock {
+Register-ArgumentCompleter -CommandName Start-KurukuruSleep -ParameterName Pattern -ScriptBlock {
     param(
         $commandName,
         $parameterName,
