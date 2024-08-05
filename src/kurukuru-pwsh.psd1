@@ -47,7 +47,7 @@
     )
     
     RequiredModules    = @(
-        'ThreadJob'
+        # 'ThreadJob'
     )
 
     # Private data to pass to the module specified in RootModule/ModuleToProcess.
