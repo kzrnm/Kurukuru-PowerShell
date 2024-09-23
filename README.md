@@ -133,7 +133,7 @@ function Start-KurukuruSleep {
     }
 }
 
-Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterName Color -ScriptBlock {
+Register-ArgumentCompleter -CommandName Start-KurukuruSleep -ParameterName Pattern -ScriptBlock {
     param(
         $commandName,
         $parameterName,
@@ -141,15 +141,14 @@ Register-ArgumentCompleter -CommandName New-Spinner, Start-Kurukuru -ParameterNa
         $commandAst,
         $fakeBoundParameter
     )
-    $Names = $KurukuruPatterns.Name
-    if ($wordToComplete.Length -eq 0) { return $Names }
-    foreach ($item in $Names) {
-        if ($item.ToLower().StartsWith($wordToComplete.ToLower())) {
+    foreach ($p in ($KurukuruPatterns)) {
+        if ($p.Name.ToLower().StartsWith($wordToComplete.ToLower())) {
             [System.Management.Automation.CompletionResult]::new(
-                $item,
-                $item,
+                $p.Name,
+                $p.Name,
                 [System.Management.Automation.CompletionResultType]::ParameterValue, 
-                $item) 
+                "$($p.Frames) Interval=$($p.Interval)"
+            )
         }
     }
 }
