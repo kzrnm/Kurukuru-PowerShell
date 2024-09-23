@@ -5,8 +5,8 @@ param (
 
 $nupkgPath = "$PSScriptRoot/../tmp/kurukuru.nupkg"
 
-if (-not $NoDownload) {
-    mkdir tmp -Force
+if (!$NoDownload) {
+    New-Item "$PSScriptRoot/../tmp/" -ItemType Directory -Force
     Invoke-WebRequest "https://www.nuget.org/api/v2/package/Kurukuru/" -OutFile $nupkgPath
     if (Test-Path ./tmp/kurukuru) {
         Remove-Item -Recurse ./tmp/kurukuru -Force
@@ -16,6 +16,9 @@ if (-not $NoDownload) {
 
 $dllPath = (Resolve-Path "$PSScriptRoot/../tmp/kurukuru/lib/netstandard2.0/Kurukuru.dll")
 $currentDllPath = (Resolve-Path "$PSScriptRoot/../src/lib/Kurukuru.dll")
+
+Get-Item $dllPath
+Get-Item $currentDllPath
 
 $assemblyVersionScriptBlock = {
     param($dllPath)
