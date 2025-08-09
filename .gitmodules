@@ -1,0 +1,3 @@
+[submodule "src/Kurukuru"]
+	path = src/Kurukuru
+	url = https://github.com/kzrnm/Kurukuru.git

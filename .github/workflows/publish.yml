@@ -69,7 +69,7 @@ jobs:
       - name: Run Pester
         shell: pwsh
         run: |
-          ${{ format(inputs.required-module && 'Install-Module {0} -Scope CurrentUser -Force', inputs.required-module) }}
+          ${{ format(inputs.required-module && 'Install-Module {0} -Scope CurrentUser -Force -AllowClobber', inputs.required-module) }}
           Invoke-Pester -CI
   test-windows-powershell:
     runs-on: windows-latest
@@ -78,7 +78,7 @@ jobs:
       - name: Run Pester
         shell: powershell
         run: |
-          ${{ format(inputs.required-module && 'Install-Module {0} -Scope CurrentUser -Force', inputs.required-module) }}
+          ${{ format(inputs.required-module && 'Install-Module {0} -Scope CurrentUser -Force -AllowClobber', inputs.required-module) }}
           Invoke-Pester -CI
 
   new-version-only:

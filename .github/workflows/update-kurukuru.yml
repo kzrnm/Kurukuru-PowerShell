@@ -1,8 +1,8 @@
 name: Update Kurukuru
 
 on:
-  schedule:
-    - cron: "0 9 * * 1"
+  # schedule:
+  #   - cron: "0 9 * * 1"
   workflow_dispatch:
 
 jobs:
@@ -10,15 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download Kurukuru
-        shell: pwsh
+        with:
+          submodules: true
+      # - name: Download Kurukuru
+      #   shell: pwsh
+      #   id: download-kurukuru
+      #   run: ./tools/download_kurukuru.ps1
+      # - name: Copy DLL
+      #   continue-on-error: true
+      #   run: cp ${{github.workspace}}/tmp/New-Kurukuru.dll src/lib/Kurukuru.dll
+      - name: build
+        shell: bash
         id: download-kurukuru
-        run: ./tools/download_kurukuru.ps1
-
-      - name: Copy DLL
-        continue-on-error: true
-        run: cp ${{github.workspace}}/tmp/New-Kurukuru.dll lib/Kurukuru.dll
-
+        working-directory: src/Kurukuru
+        run: |
+          echo "kurukuru-version=fork" >> "$GITHUB_OUTPUT"
+          dotnet build -c Release
+          cp "Kurukuru/bin/Release/netstandard2.0/Kurukuru.dll" "${{github.workspace}}/src/lib/Kurukuru.dll"
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
