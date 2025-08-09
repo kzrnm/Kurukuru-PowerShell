@@ -1,15 +1,15 @@
 {
     "terminal.integrated.profiles.windows": {
-        "PowerShell": {
+        "PowerShell(kurukuru)": {
             "source": "PowerShell",
             "icon": "terminal-powershell",
             "color": "terminal.ansiRed",
             "args": [
                 "-NoExit",
+                "-NoProfile",
                 "-Command",
                 "Import-Module ./src/kurukuru-pwsh.psd1"
             ],
-            "overrideName": true
         },
         "WindowsPowerShell": {
             "path": "${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
@@ -17,6 +17,7 @@
             "color": "terminal.ansiRed",
             "args": [
                 "-NoExit",
+                "-NoProfile",
                 "-Command",
                 "Import-Module ./src/kurukuru-pwsh.psd1"
             ],
@@ -33,6 +34,5 @@
         "Git Bash": {
             "source": "Git Bash"
         }
-    },
-    "terminal.integrated.defaultProfile.windows": "PowerShell"
+    }
 }
