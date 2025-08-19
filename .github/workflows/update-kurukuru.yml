@@ -4,33 +4,45 @@ on:
   # schedule:
   #   - cron: "0 9 * * 1"
   workflow_dispatch:
-
+    inputs:
+      fork:
+        description: "Use forked Kurukuru"
+        type: boolean
+        required: false
+        default: false
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      # - name: Download Kurukuru
-      #   shell: pwsh
-      #   id: download-kurukuru
-      #   run: ./tools/download_kurukuru.ps1
-      # - name: Copy DLL
-      #   continue-on-error: true
-      #   run: cp ${{github.workspace}}/tmp/New-Kurukuru.dll src/lib/Kurukuru.dll
+      - uses: actions/checkout@v5
+      - name: Download Kurukuru
+        if: ${{ !inputs.fork }}
+        shell: pwsh
+        id: download-kurukuru
+        run: ./tools/download_kurukuru.ps1
+      - name: Copy DLL
+        if: ${{ !inputs.fork }}
+        continue-on-error: true
+        run: cp ${{github.workspace}}/tmp/New-Kurukuru.dll src/lib/Kurukuru.dll
       - name: build
         shell: bash
-        id: download-kurukuru
-        working-directory: src/Kurukuru
+        if: ${{ inputs.fork }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          gh repo clone ${{github.repository_owner}}/Kurukuru "$RUNNER_TEMP/Kurukuru"
+          cd "$RUNNER_TEMP/Kurukuru"
           echo "kurukuru-version=fork" >> "$GITHUB_OUTPUT"
           dotnet build -c Release
           cp "Kurukuru/bin/Release/netstandard2.0/Kurukuru.dll" "${{github.workspace}}/src/lib/Kurukuru.dll"
+      - name: Set Kurukuru Version
+        id: version
+        shell: bash
+        run: echo "kurukuru-version=${{ steps.download-kurukuru.outputs.kurukuru-version || 'fork' }}" >> $GITHUB_OUTPUT
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           commit-message: Update Kurukuru.dll
           delete-branch: true
-          branch: auto/update-kurukuru-${{ steps.download-kurukuru.outputs.kurukuru-version }}
-          title: Update Kurukuru.dll ${{ steps.download-kurukuru.outputs.kurukuru-version }}
+          branch: auto/update-kurukuru-${{ steps.version.outputs.kurukuru-version }}
+          title: Update Kurukuru.dll ${{ steps.version.outputs.kurukuru-version }}
