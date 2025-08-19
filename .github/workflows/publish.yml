@@ -27,7 +27,7 @@ jobs:
       is-prerelease: ${{ steps.get-version.outputs.is-prerelease }}
       new-tag: ${{ steps.is-new-version.outputs.new-tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Get Module Version
         id: get-version
         shell: pwsh
@@ -65,7 +65,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run Pester
         shell: pwsh
         run: |
@@ -74,7 +74,7 @@ jobs:
   test-windows-powershell:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run Pester
         shell: powershell
         run: |
@@ -96,7 +96,7 @@ jobs:
     permissions: 
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Push tag
         id: tag-version
         run: |
